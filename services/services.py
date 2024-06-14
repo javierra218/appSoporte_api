@@ -1,38 +1,96 @@
-from sqlalchemy import Column as Col, Integer, VARCHAR, DateTime, ForeignKey
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
-from config.database import Base
+from datetime import datetime, timezone
+from sqlalchemy.orm import Session
+from models.models import Trabajador, Soporte, Asignacion
+from schemas.schemas import TrabajadorBase, SoporteBase, AsignacionBase
+import random
 
-class Trabajador(Base):
-    __tablename__ = 'trabajadores'
-    
-    id_trabajador = Col(Integer, primary_key=True, index=True)
-    nombre_trabajador = Col(VARCHAR(100))
-    peso_acumulado = Col(Integer, default=0)
 
-    # Relación con Asignacion
-    asignaciones = relationship("Asignacion", back_populates="trabajador")
+class TrabajadorService:
+    def __init__(self, db: Session) -> None:
+        self.db = db
 
-class Soporte(Base):
-    __tablename__ = 'soportes'
-    
-    id_soporte = Col(Integer, primary_key=True, index=True)
-    nombre_soporte = Col(VARCHAR(100))
-    descripcion = Col(VARCHAR(255))
-    prioridad = Col(Integer)
-    peso_trabajo = Col(Integer)
+    def create_trabajador(self, trabajador: TrabajadorBase):
+        new_trabajador = Trabajador(**trabajador.model_dump())
+        self.db.add(new_trabajador)
+        self.db.commit()
+        self.db.refresh(new_trabajador)
+        return new_trabajador
 
-    # Relación con Asignacion
-    asignaciones = relationship("Asignacion", back_populates="soporte")
+    def get_trabajadores(self):
+        return self.db.query(Trabajador).all()
 
-class Asignacion(Base):
-    __tablename__ = 'asignaciones'
-    
-    id_asignacion = Col(Integer, primary_key=True, index=True)
-    id_trabajador = Col(Integer, ForeignKey('trabajadores.id_trabajador'))
-    id_soporte = Col(Integer, ForeignKey('soportes.id_soporte'))
-    fecha_asignacion = Col(DateTime(timezone=True), server_default=func.now())
+    def get_trabajador(self, id_trabajador: int):
+        return (
+            self.db.query(Trabajador)
+            .filter(Trabajador.id_trabajador == id_trabajador)
+            .first()
+        )
 
-    # Relación con Trabajador y Soporte
-    trabajador = relationship("Trabajador", back_populates="asignaciones")
-    soporte = relationship("Soporte", back_populates="asignaciones")
+
+class SoporteService:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def create_soporte(self, soporte: SoporteBase):
+        new_soporte = Soporte(**soporte.model_dump())
+        self.db.add(new_soporte)
+        self.db.commit()
+        self.db.refresh(new_soporte)
+        return new_soporte
+
+    def get_soportes(self):
+        return self.db.query(Soporte).all()
+
+    def get_soporte(self, id_soporte: int):
+        return self.db.query(Soporte).filter(Soporte.id_soporte == id_soporte).first()
+
+
+class AsignacionService:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def create_asignacion(self, asignacion: AsignacionBase):
+        new_asignacion = Asignacion(**asignacion.model_dump())
+        self.db.add(new_asignacion)
+        self.db.commit()
+        self.db.refresh(new_asignacion)
+        return new_asignacion
+
+    def get_asignaciones(self):
+        return self.db.query(Asignacion).all()
+
+    def get_asignacion(self, id_asignacion: int):
+        return (
+            self.db.query(Asignacion)
+            .filter(Asignacion.id_asignacion == id_asignacion)
+            .first()
+        )
+
+    def assign_support(self, soporte: SoporteBase):
+        trabajadores = (
+            self.db.query(Trabajador).order_by(Trabajador.peso_acumulado).all()
+        )
+        if not trabajadores:
+            return None
+
+        # Encontrar los trabajadores con el menor peso acumulado
+        min_peso = trabajadores[0].peso_acumulado
+        candidatos = [t for t in trabajadores if t.peso_acumulado == min_peso]
+
+        # Seleccionar un trabajador aleatoriamente en caso de empate
+        trabajador = random.choice(candidatos)
+
+        new_soporte = Soporte(**soporte.model_dump())
+        self.db.add(new_soporte)
+        self.db.commit()
+        self.db.refresh(new_soporte)
+
+        new_asignacion = Asignacion(
+            id_trabajador=trabajador.id_trabajador,
+            id_soporte=new_soporte.id_soporte,
+            fecha_asignacion=datetime.now(timezone.utc),
+        )
+        self.db.add(new_asignacion)
+        trabajador.peso_acumulado += new_soporte.peso_trabajo
+        self.db.commit()
+        return new_asignacion
