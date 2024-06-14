@@ -25,7 +25,45 @@ class TrabajadorService:
             .filter(Trabajador.id_trabajador == id_trabajador)
             .first()
         )
-    
+
+    def update_trabajador(self, id_trabajador: int, trabajador: TrabajadorBase):
+        existing_trabajador = self.get_trabajador(id_trabajador)
+        if existing_trabajador:
+            existing_trabajador.nombre_trabajador = trabajador.nombre_trabajador
+            existing_trabajador.peso_acumulado = trabajador.peso_acumulado
+            self.db.commit()
+            self.db.refresh(existing_trabajador)
+        return existing_trabajador
+
+    # def update_trabajador(self, id_trabajador: int, trabajador: TrabajadorBase):
+    #     existing_trabajador = self.get_trabajador(id_trabajador)
+    #     if existing_trabajador:
+    #         for key, value in trabajador.model_dump().items():
+    #             setattr(existing_trabajador, key, value)
+    #         self.db.commit()
+    #         self.db.refresh(existing_trabajador)
+    #     return existing_trabajador
+
+    def delete_trabajador(self, id_trabajador: int):
+        trabajador = self.get_trabajador(id_trabajador)
+        if trabajador:
+            self.db.delete(trabajador)
+            self.db.commit()
+            return True
+        return False
+
+    def get_trabajador_detalles(self, id_trabajador: int):
+        trabajador = self.get_trabajador(id_trabajador)
+        if trabajador:
+            asignaciones = (
+                self.db.query(Asignacion)
+                .filter(Asignacion.id_trabajador == id_trabajador)
+                .all()
+            )
+            detalles = {"trabajador": trabajador, "soportes_asignados": asignaciones}
+            return detalles
+        return None
+
     def reset_pesos_acumulados(self):
         trabajadores = self.get_trabajadores()
         for trabajador in trabajadores:
@@ -51,6 +89,46 @@ class SoporteService:
     def get_soporte(self, id_soporte: int):
         return self.db.query(Soporte).filter(Soporte.id_soporte == id_soporte).first()
 
+    def update_soporte(self, id_soporte: int, soporte: SoporteBase):
+        existing_soporte = self.get_soporte(id_soporte)
+        if existing_soporte:
+            existing_soporte.nombre_soporte = soporte.nombre_soporte
+            existing_soporte.descripcion = soporte.descripcion
+            existing_soporte.prioridad = soporte.prioridad
+            existing_soporte.peso_trabajo = soporte.peso_trabajo
+            self.db.commit()
+            self.db.refresh(existing_soporte)
+        return existing_soporte
+
+    # def update_soporte(self, id_soporte: int, soporte: SoporteBase):
+    #     existing_soporte = self.get_soporte(id_soporte)
+    #     if existing_soporte:
+    #         for key, value in soporte.model_dump().items():
+    #             setattr(existing_soporte, key, value)
+    #         self.db.commit()
+    #         self.db.refresh(existing_soporte)
+    #     return existing_soporte
+
+    def delete_soporte(self, id_soporte: int):
+        soporte = self.get_soporte(id_soporte)
+        if soporte:
+            self.db.delete(soporte)
+            self.db.commit()
+            return True
+        return False
+
+    def get_soporte_detalles(self, id_soporte: int):
+        soporte = self.get_soporte(id_soporte)
+        if soporte:
+            asignacion = (
+                self.db.query(Asignacion)
+                .filter(Asignacion.id_soporte == id_soporte)
+                .first()
+            )
+            detalles = {"soporte": soporte, "trabajador_asignado": asignacion}
+            return detalles
+        return None
+
 
 class AsignacionService:
     def __init__(self, db: Session) -> None:
@@ -74,10 +152,11 @@ class AsignacionService:
         )
 
     def buscar_trabajador_con_menos_carga(self):
-        trabajadores = self.db.query(Trabajador).order_by(Trabajador.peso_acumulado).all()
+        trabajadores = (
+            self.db.query(Trabajador).order_by(Trabajador.peso_acumulado).all()
+        )
         if not trabajadores:
             return None
-
         min_peso = trabajadores[0].peso_acumulado
         candidatos = [t for t in trabajadores if t.peso_acumulado == min_peso]
         return random.choice(candidatos)
@@ -86,12 +165,10 @@ class AsignacionService:
         trabajador = self.buscar_trabajador_con_menos_carga()
         if not trabajador:
             return None
-
         new_soporte = Soporte(**soporte.model_dump())
         self.db.add(new_soporte)
         self.db.commit()
         self.db.refresh(new_soporte)
-
         new_asignacion = Asignacion(
             id_trabajador=trabajador.id_trabajador,
             id_soporte=new_soporte.id_soporte,
