@@ -17,4 +17,4 @@ Base.metadata.create_all(bind=engine)  # Crear las tablas en la base de datos
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
-    return "<h1>appSoporte</h1>"
+    return "<h1>appSoportes</h1>"
