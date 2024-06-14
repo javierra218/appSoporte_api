@@ -25,6 +25,13 @@ class TrabajadorService:
             .filter(Trabajador.id_trabajador == id_trabajador)
             .first()
         )
+    
+    def reset_pesos_acumulados(self):
+        trabajadores = self.get_trabajadores()
+        for trabajador in trabajadores:
+            trabajador.peso_acumulado = 0
+        self.db.commit()
+        return trabajadores
 
 
 class SoporteService:
@@ -66,19 +73,19 @@ class AsignacionService:
             .first()
         )
 
-    def assign_support(self, soporte: SoporteBase):
-        trabajadores = (
-            self.db.query(Trabajador).order_by(Trabajador.peso_acumulado).all()
-        )
+    def buscar_trabajador_con_menos_carga(self):
+        trabajadores = self.db.query(Trabajador).order_by(Trabajador.peso_acumulado).all()
         if not trabajadores:
             return None
 
-        # Encontrar los trabajadores con el menor peso acumulado
         min_peso = trabajadores[0].peso_acumulado
         candidatos = [t for t in trabajadores if t.peso_acumulado == min_peso]
+        return random.choice(candidatos)
 
-        # Seleccionar un trabajador aleatoriamente en caso de empate
-        trabajador = random.choice(candidatos)
+    def assign_support(self, soporte: SoporteBase):
+        trabajador = self.buscar_trabajador_con_menos_carga()
+        if not trabajador:
+            return None
 
         new_soporte = Soporte(**soporte.model_dump())
         self.db.add(new_soporte)

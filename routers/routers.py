@@ -38,13 +38,13 @@ def get_trabajadores():
 @soporte_router.post("/trabajadores/reset", tags=["Trabajadores"], response_model=dict)
 def reset_pesos_acumulados():
     db = SessionLocal()
-    trabajadores = TrabajadorService(db).get_trabajadores()
-    for trabajador in trabajadores:
-        trabajador.peso_acumulado = 0
-    db.commit()
+    result = TrabajadorService(db).reset_pesos_acumulados()
+    if result:
+        return JSONResponse(
+            status_code=200, content={"message": "Pesos acumulados reseteados"}
+        )
     return JSONResponse(
-        status_code=200,
-        content={"message": "Pesos acumulados reiniciados exitosamente"},
+        status_code=400, content={"message": "Error al resetear los pesos acumulados"}
     )
 
 
